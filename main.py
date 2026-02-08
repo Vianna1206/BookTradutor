@@ -55,7 +55,7 @@ Examples:
     
     try:
         # Translate the file
-        translator.translate_file(
+        actual_output_path = translator.translate_file(
             input_path=input_path,
             output_path=output_path,
             source_lang=args.source,
@@ -63,7 +63,7 @@ Examples:
         )
         
         print(f"\n✓ Translation completed successfully!")
-        print(f"  Output saved to: {output_path}")
+        print(f"  Output saved to: {actual_output_path}")
         
     except Exception as e:
         print(f"\n✗ Error during translation: {str(e)}")

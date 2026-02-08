@@ -6,9 +6,15 @@ Handles translation of different file formats
 import os
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from googletrans import Translator
 from tqdm import tqdm
+
+try:
+    import PyPDF2
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
 
 
 class BookTranslator:
@@ -53,7 +59,7 @@ class BookTranslator:
             return text
     
     def translate_file(self, input_path: Path, output_path: Path,
-                      source_lang: str = 'auto', target_lang: str = 'pt'):
+                      source_lang: str = 'auto', target_lang: str = 'pt') -> Path:
         """
         Translate a file based on its format
         
@@ -62,16 +68,21 @@ class BookTranslator:
             output_path: Path to output file
             source_lang: Source language code
             target_lang: Target language code
+            
+        Returns:
+            Path to the actual output file (may differ from output_path for PDFs)
         """
         file_extension = input_path.suffix.lower()
         
         if file_extension == '.pdf':
-            self._translate_pdf(input_path, output_path, source_lang, target_lang)
+            return self._translate_pdf(input_path, output_path, source_lang, target_lang)
         elif file_extension in ['.txt', '.md', '.text']:
             self._translate_text_file(input_path, output_path, source_lang, target_lang)
+            return output_path
         else:
             # Try as text file
             self._translate_text_file(input_path, output_path, source_lang, target_lang)
+            return output_path
     
     def _translate_text_file(self, input_path: Path, output_path: Path,
                             source_lang: str, target_lang: str):
@@ -106,11 +117,13 @@ class BookTranslator:
             f.write(translated_content)
     
     def _translate_pdf(self, input_path: Path, output_path: Path,
-                      source_lang: str, target_lang: str):
-        """Translate a PDF file"""
-        try:
-            import PyPDF2
-        except ImportError:
+                      source_lang: str, target_lang: str) -> Path:
+        """Translate a PDF file
+        
+        Returns:
+            Path to the output text file
+        """
+        if not PDF_SUPPORT:
             raise ImportError("PyPDF2 is required for PDF translation. Install it with: pip install PyPDF2")
         
         print(f"Reading PDF: {input_path}")
@@ -157,19 +170,28 @@ class BookTranslator:
                 f.write("\n\n")
         
         print(f"Note: PDF content extracted and translated to text file: {output_txt}")
+        return output_txt
     
-    def _split_into_chunks(self, text: str, max_length: int = 5000) -> list:
+    def _split_into_chunks(self, text: str, max_length: int = 5000) -> list[str]:
         """Split text into chunks for translation"""
         if len(text) <= max_length:
             return [text]
         
         chunks = []
-        sentences = re.split(r'([.!?]\s+)', text)
+        # Split on sentence boundaries but keep the text together
+        sentences = re.split(r'[.!?]\s+', text)
         
         current_chunk = ""
         for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+                
             if len(current_chunk) + len(sentence) <= max_length:
-                current_chunk += sentence
+                if current_chunk:
+                    current_chunk += ". " + sentence
+                else:
+                    current_chunk = sentence
             else:
                 if current_chunk:
                     chunks.append(current_chunk)
